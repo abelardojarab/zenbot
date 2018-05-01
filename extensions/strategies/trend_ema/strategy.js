@@ -52,7 +52,7 @@ module.exports = {
       }
     }
     if (typeof s.period.trend_ema_stddev === 'number') {
-      if (s.period.trend_ema_rate > s.period.trend_ema_stddev) {
+      if (s.period.trend_ema_rate > s.period.trend_ema_stddev / 4.0) {
         if (s.trend !== 'up') {
           s.acted_on_trend = false
         }
@@ -74,7 +74,7 @@ module.exports = {
     var cols = []
     if (typeof s.period.trend_ema_stddev === 'number') {
       var color = 'grey'
-      if (s.period.trend_ema_rate > s.period.trend_ema_stddev) {
+      if (s.period.trend_ema_rate > s.period.trend_ema_stddev / 4.0) {
         color = 'green'
       } else if (s.period.trend_ema_rate < s.period.trend_ema_stddev * -1) {
         color = 'red'
@@ -111,4 +111,3 @@ module.exports = {
     oversold_rsi: Phenotypes.Range(20, 100)
   },
 }
-
