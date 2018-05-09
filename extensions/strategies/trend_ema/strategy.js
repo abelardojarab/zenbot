@@ -26,7 +26,7 @@ module.exports = {
       // sync RSI display with oversold RSI periods
       s.options.rsi_periods = s.options.oversold_rsi_periods
       rsi(s, 'oversold_rsi', s.options.oversold_rsi_periods)
-      if (!s.in_preroll && s.period.oversold_rsi <= s.options.oversold_rsi && !s.oversold && !s.cancel_down) {
+      if (!s.in_preroll && s.period.oversold_rsi <= s.options.oversold_rsi && !s.oversold && !s.cancel_down && s.period.trend_ema_rate > -1.0 * s.period.trend_ema_stddev / 4.0) {
         s.oversold = true
         if (s.options.mode !== 'sim' || s.options.verbose) console.log(('\noversold at ' + s.period.oversold_rsi + ' RSI, preparing to buy\n').cyan)
       }
