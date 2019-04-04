@@ -498,6 +498,10 @@ module.exports = function gdax (conf) {
           body.status = 'done'
           body.done_reason = 'canceled'
         }
+        
+        if (err) {
+          return retry('getOrder', func_args, err)
+        }
 
         if (err) {
           return retry('getOrder', func_args, err)

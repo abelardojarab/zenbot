@@ -20,6 +20,8 @@
  * --noStatSave=<true>|<false>            true:no statistics are saved to the simulation folder
  * --silent=<true>|<false>                true:can improve performance
  * --runGenerations=<int>                 if used run this number of generations, will be shown 1 less due to generations starts at 0
+ * --minTrades=<int>                      Minimum wins before generation is considured fit to evolve
+ * --fitnessCalcType=<wl / profit / classic / profitwl> Default: Classic. wl will score the highes for wins and losses, profit doesn't care about wins and losses only the higest end balance, classic uses original claculation / profitwl tries to get the highest profit using the lowest win/loss ratio
  *
  *
  * any parameters for sim and or strategy can be passed in and will override the genetic test generated parameter
@@ -28,7 +30,7 @@
  */
 
 let parallel = require('run-parallel-limit')
-let json2csv = require('json2csv')
+let Json2csvParser = require('json2csv').Parser
 let fs = require('fs')
 let GeneticAlgorithmCtor = require('geneticalgorithm')
 let moment = require('moment')
@@ -40,7 +42,7 @@ let Backtester = require('../../lib/backtester')
 let argv = require('yargs').argv
 let z = require('zero-fill')
 let n = require('numbro')
-let _ = require('lodash')
+
 
 let VERSION = 'Zenbot 4 Genetic Backtester v0.2.3'
 
@@ -57,8 +59,10 @@ let runGenerations = undefined
 let generationProcessing = false
 let population_data = ''
 let noStatSave = false
-let floatScanWindow = false
+//let floatScanWindow = false
 let ignoreLaunchFitness = false
+let minimumTrades = 0
+let fitnessCalcType = 'classic'
 
 let readSimDataFile = (iteration) => {
   let jsonFileName = `simulations/${population_data}/gen_${generationCount}/sim_${iteration}.json`
@@ -258,6 +262,8 @@ function simulateGeneration(generateLaunchFile) {
       }
 
       iterationCount++
+      phenotype.minTrades = minimumTrades
+      phenotype.fitnessCalcType = fitnessCalcType
       Backtester.runCommand(v, phenotype, command, cb)
     }
   })).reduce((a, b) => a.concat(b))
@@ -273,16 +279,72 @@ function simulateGeneration(generateLaunchFile) {
 
     results.sort((a, b) => (Number(a.fitness) < Number(b.fitness)) ? 1 : ((Number(b.fitness) < Number(a.fitness)) ? -1 : 0))
 
-    let fieldsGeneral = ['selector.normalized', 'fitness', 'vsBuyHold', 'wlRatio', 'frequency', 'strategy', 'order_type', 'endBalance', 'buyHold', 'wins', 'losses', 'period_length', 'min_periods', 'days', 'params']
-    let fieldNamesGeneral = ['Selector', 'Fitness', 'VS Buy Hold (%)', 'Win/Loss Ratio', '# Trades/Day', 'Strategy', 'Order Type', 'Ending Balance ($)', 'Buy Hold ($)', '# Wins', '# Losses', 'Period', 'Min Periods', '# Days', 'Full Parameters']
+    const fields = [
+      {
+        'label': 'Selector',
+        'value': 'selector'
+      },
+      {
+        'label': 'Fitness',
+        'value': 'fitness'
+      },
+      {
+        'label': 'VS Buy Hold (%)',
+        'value': 'vsBuyHold'
+      },
+      {
+        'label': 'Win/Loss Ratio',
+        'value': 'wlRatio'
+      },
+      {
+        'label': '# Trades/Day',
+        'value': 'frequency'
+      },
+      {
+        'label': 'Strategy',
+        'value': 'strategy'
+      },
+      {
+        'label': 'Order Type',
+        'value': 'order_type'
+      },
+      {
+        'label': 'Ending Balance ($)',
+        'value': 'endBalance'
+      },
+      {
+        'label': 'Buy Hold ($)',
+        'value': 'buyHold'
+      },
+      {
+        'label': '# Wins',
+        'value': 'wins'
+      },
+      {
+        'label': '# Losses',
+        'value': 'losses'
+      },
+      {
+        'label': 'Period',
+        'value': 'period_length'
+      },
+      {
+        'label': 'Min Periods',
+        'value': 'min_periods'
+      },
+      {
+        'label': '# Days',
+        'value': 'days'
+      },
+      {
+        'label': 'Full Parameters',
+        'value': 'params'
+      }
+    ]
 
-    let dataCSV = json2csv({
-      data: results,
-      fields: fieldsGeneral,
-      fieldNames: fieldNamesGeneral
-    })
+    let json2csvParser = new Json2csvParser({ fields })
+    let dataCSV = json2csvParser.parse(results)
     let csvFileName = `simulations/${population_data}/gen_${generationCount}/results.csv`
-
     let poolData = {}
     selectedStrategies.forEach(function (v) {
       poolData[v] = pools[v]['pool'].population()
@@ -325,9 +387,9 @@ function simulateGeneration(generateLaunchFile) {
           (a.fitness < b.fitness) ? 1 :
             (b.fitness < a.fitness) ? -1 : 0)
 
-    let bestOverallCommand = generateCommandParams(bestOverallResult[0])
-    bestOverallCommand = prefix + bestOverallCommand
-    bestOverallCommand = bestOverallCommand + ' --asset_capital=' + argv.asset_capital + ' --currency_capital=' + argv.currency_capital
+    // let bestOverallCommand = generateCommandParams(bestOverallResult[0])
+    // bestOverallCommand = prefix + bestOverallCommand
+    // bestOverallCommand = bestOverallCommand + ' --asset_capital=' + argv.asset_capital + ' --currency_capital=' + argv.currency_capital
 
     saveLaunchFiles(generateLaunchFile, bestOverallResult[0])
 
@@ -371,6 +433,10 @@ if (simArgs.help || !(simArgs.use_strategies)) {
   console.log('--days=<int>  amount of days to use when backfilling')
   console.log('--noStatSave=<true>|<false>')
   console.log('--runGenerations=<int>  if used run this number of generations, will be shown 1 less due to generations starts at 0')
+  console.log('--minTrades=<int>  Minimum wins before generation is considured fit to evolve')
+  console.log('--fitnessCalcType=<wl / profit / classic / profitwl> Default: Classic.')
+  console.log('                  wl will score the highes for wins and losses, profit does not care about wins and losses only the higest end balance,')
+  console.log('                  classic uses original claculation / profitwl tries to get the highest profit using the lowest win/loss ratio')
   process.exit(0)
 }
 
@@ -384,6 +450,17 @@ if (simArgs.maxCores) {
   if (simArgs.maxCores < 1) PARALLEL_LIMIT = 1
   else PARALLEL_LIMIT = simArgs.maxCores
 }
+fitnessCalcType = 'classic'
+if (simArgs.fitnessCalcType) {
+
+  if (simArgs.fitnessCalcType == 'classic') fitnessCalcType = 'classic'
+  if (simArgs.fitnessCalcType == 'wl') fitnessCalcType = 'wl'
+  if (simArgs.fitnessCalcType == 'profit') fitnessCalcType = 'profit'
+  if (simArgs.fitnessCalcType == 'profitwl') fitnessCalcType = 'profitwl'
+
+
+}
+
 
 if (!isUndefined(simArgs.runGenerations)) {
   if (simArgs.runGenerations) {
@@ -396,7 +473,8 @@ noStatSave = (simArgs.noStatSave) ? true : false
 
 let strategyName = (argv.use_strategies) ? argv.use_strategies : 'all'
 populationSize = (argv.population) ? argv.population : 100
-floatScanWindow = (argv.floatScanWindow) ? argv.floatScanWindow : false
+minimumTrades = (argv.minTrades) ? argv.minTrades : 0
+//floatScanWindow = (argv.floatScanWindow) ? argv.floatScanWindow : false
 ignoreLaunchFitness = (argv.ignoreLaunchFitness) ? argv.ignoreLaunchFitness : false
 
 population_data = argv.population_data || `backtest.${simArgs.selector.toLowerCase()}.${moment().format('YYYYMMDDHHmmss')}`
@@ -419,7 +497,8 @@ for (var i = 0; i < selectedStrategies.length; i++) {
     let population = []
 
     for (var i2 = population.length; i2 < populationSize; ++i2) {
-      population.push(Phenotypes.create(strategyPhenotypes))
+      var lPheno = Phenotypes.create(strategyPhenotypes)
+      population.push(lPheno)
       evolve = false
     }
 
